@@ -18,7 +18,6 @@
 class Network {
 public:
     int sock = -1;
-    // [MOI] Them bien luu IP Server
     std::string server_ip = "127.0.0.1"; 
 
     void set_server_ip(std::string ip) {
@@ -35,12 +34,10 @@ public:
         struct sockaddr_in addr;
         addr.sin_family = AF_INET; 
         addr.sin_port = htons(SERVER_PORT);
-        // [MOI] Dung IP da cai dat
         inet_pton(AF_INET, server_ip.c_str(), &addr.sin_addr);
         
-        // Them timeout de khong bi treo neu sai IP
         struct timeval timeout;      
-        timeout.tv_sec = 3; timeout.tv_usec = 0; // Cho toi da 3 giay
+        timeout.tv_sec = 3; timeout.tv_usec = 0;
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
         setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout);
 
@@ -91,13 +88,17 @@ class App {
     }
 
 public:
-    // [MOI] Ham cau hinh IP luc khoi dong
     void setup_connection() {
         std::string ip;
         std::cout << "=== KET NOI SERVER ===\n";
-        std::cout << "Nhap IP cua may Server (VD: 192.168.1.X): ";
-        std::cin >> ip;
-        net.set_server_ip(ip);
+        std::cout << "Nhap IP cua may Server (VD: 192.168.1.X) [Enter de dung mac dinh 127.0.0.1]: ";
+        if (std::cin.peek() == '\n') {
+            std::cin.ignore();
+        } else {
+            std::cin >> ip;
+        }
+        
+        if (!ip.empty()) net.set_server_ip(ip);
         
         std::cout << "Dang ket noi thu...";
         if (net.connect_server()) {
@@ -187,17 +188,51 @@ public:
         while(true) {
             std::cout << "\n--- DIEU KHIEN: " << cur_type << " ---\n";
             std::cout << "1. Xem thong so\n";
-            if(cur_type!="SENSOR") std::cout << "2. Bat/Cai dat\n"; 
+            if(cur_type!="SENSOR") std::cout << "2. Bat (Hoac Cai dat)\n"; 
             if(cur_type!="SENSOR" && cur_type!="FERT") std::cout << "3. Tat\n";
+            
+            if(cur_type=="PUMP") std::cout << "4. Cai dat Hmin/Hmax Tu dong\n";
             if(cur_type=="LIGHT") std::cout << "4. Hen gio Tu Dong\n5. Bat lai che do Auto\n"; 
+            
             std::cout << "0. Quay lai\nChon: ";
             int k; std::cin >> k; if(k==0) break;
 
             if(k==1) show_device_data(net.send_cmd("CMD=INFO_DATA_REQ," + base_cmd), cur_type);
+            
+            // --- LOGIC BOM NUOC ---
             else if(cur_type=="PUMP") {
                 if(k==2) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=pump,action=ON");
                 if(k==3) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=pump,action=OFF");
+                
+                // [MOI] Cai dat Hmin Hmax CO KIEM TRA LOI
+                if(k==4) {
+                    std::string s_min, s_max;
+                    float f_min, f_max;
+                    
+                    std::cout << "Nhap do am toi thieu (H_MIN %): "; std::cin >> s_min;
+                    std::cout << "Nhap do am toi da (H_MAX %): "; std::cin >> s_max;
+                    
+                    try {
+                        f_min = std::stof(s_min);
+                        f_max = std::stof(s_max);
+
+                        if (f_min < 0 || f_max < 0) {
+                            std::cout << "\n\033[1;31m>> LOI: Gia tri do am khong duoc AM!\033[0m\n";
+                        } 
+                        else if (f_max < f_min) {
+                            std::cout << "\n\033[1;31m>> LOI: H_MAX phai lon hon hoac bang H_MIN!\033[0m\n";
+                        } 
+                        else {
+                            // Neu moi thu OK thi moi gui
+                            std::cout << net.send_cmd("CMD=SET_PARAM," + base_cmd + ",HMIN=" + s_min + ",HMAX=" + s_max) << "\n";
+                        }
+                    } catch (...) {
+                         std::cout << "\n\033[1;31m>> LOI: Vui long nhap so hop le!\033[0m\n";
+                    }
+                }
             }
+            
+            // --- LOGIC DEN ---
             else if(cur_type=="LIGHT") {
                 if(k==2) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=light,action=ON");
                 if(k==3) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=light,action=OFF");
@@ -209,9 +244,11 @@ public:
                       std::cout << net.send_cmd("CMD=ENABLE_AUTO," + base_cmd) << "\n";
                 }
             }
+            
+            // --- LOGIC PHAN BON ---
             else if(cur_type=="FERT") {
                 if(k==2) { 
-                    std::string n,p,kk; std::cout<<"N: ";std::cin>>n;std::cout<<"P: ";std::cin>>pp;std::cout<<"K: ";std::cin>>kk;
+                    std::string n,p,kk; std::cout<<"N: ";std::cin>>n;std::cout<<"P: ";std::cin>>p;std::cout<<"K: ";std::cin>>kk;
                     net.send_cmd("CMD=SET_PARAM," + base_cmd + ",NMIN="+n+",PMIN="+p+",KMIN="+kk);
                 }
             }
@@ -219,7 +256,7 @@ public:
     }
 
     void run() { 
-        setup_connection(); // [MOI] Buoc 1: Nhap IP
+        setup_connection(); 
         while(true) { auth_menu(); garden_list_menu(); } 
     }
 };

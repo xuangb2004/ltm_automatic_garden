@@ -170,7 +170,7 @@ public:
         std::string cmd = data.count("CMD") ? data["CMD"] : (data.count("MSG_TYPE") ? data["MSG_TYPE"] : "");
         std::lock_guard<std::mutex> lock(db_mutex);
 
-        // ... (Logic xu ly lenh GIU NGUYEN nhu cu) ...
+        // XU LY CAC LENH   
         if (cmd == "LOGIN") {
             for (auto &u : users) if (u.username == data["USER"] && u.password == data["PASS"]) return "STATUS=SUCCESS";
             return "STATUS=FAIL";
