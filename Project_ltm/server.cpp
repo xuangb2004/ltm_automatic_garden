@@ -239,6 +239,10 @@ public:
                 std::string dev = data["device"]; std::string act = data["action"];
                 if (dev == "pump") k.pump_on = (act == "ON");
                 if (dev == "light") { k.light_on = (act == "ON"); k.auto_light_mode = false; }
+                if (dev == "fert" && act == "ON") {
+                k.N += 15.0; k.P += 15.0; k.K += 15.0; 
+                std::cout << "[CMD " << k_id << "] Manual Fertilize -> Added NPK\n";
+                }
                 save_all(); return "MSG_TYPE=CONTROL_RES,STATUS=SUCCESS";
             }
             return "STATUS=FAIL";

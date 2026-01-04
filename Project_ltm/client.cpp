@@ -211,7 +211,7 @@ public:
         }
     }
 
-    void control_sub_device(std::string kit_id, int type_idx) {
+void control_sub_device(std::string kit_id, int type_idx) {
         std::string types[] = {"", "SENSOR", "PUMP", "FERT", "LIGHT"};
         std::string cur_type = types[type_idx];
         std::string base_cmd = "KIT_ID=" + kit_id;
@@ -219,67 +219,78 @@ public:
         while(true) {
             std::cout << "\n--- DIEU KHIEN: " << cur_type << " ---\n";
             std::cout << "1. Xem thong so\n";
-            if(cur_type!="SENSOR") std::cout << "2. Bat (Hoac Cai dat)\n"; 
-            if(cur_type!="SENSOR" && cur_type!="FERT") std::cout << "3. Tat\n";
-            
-            if(cur_type=="PUMP") std::cout << "4. Cai dat Hmin/Hmax Tu dong\n";
-            if(cur_type=="LIGHT") std::cout << "4. Hen gio Tu Dong\n5. Bat lai che do Auto\n"; 
-            
-            std::cout << "0. Quay lai\nChon: ";
-            int k; std::cin >> k; if(k==0) break;
 
+            // [SUA DOI] Hien thi menu rieng biet cho tung loai thiet bi
+            if (cur_type == "PUMP") {
+                std::cout << "2. Bat Bom (Thu cong)\n";
+                std::cout << "3. Tat Bom (Thu cong)\n";
+                std::cout << "4. Cai dat Hmin/Hmax Tu dong\n";
+            }
+            else if (cur_type == "LIGHT") {
+                std::cout << "2. Bat Den (Thu cong)\n";
+                std::cout << "3. Tat Den (Thu cong)\n";
+                std::cout << "4. Hen gio Tu Dong\n";
+                std::cout << "5. Bat lai che do Auto\n"; 
+            }
+            else if (cur_type == "FERT") {
+                std::cout << "2. Cai dat NPK (Tu dong)\n";
+                std::cout << "3. Bon phan NGAY (Thu cong)\n"; // Nut nay gio se hien ro rang
+            }
+
+            std::cout << "0. Quay lai\nChon: ";
+            
+            int k; std::cin >> k; 
+            if(k==0) break;
+
+            // --- XU LY LENH ---
+
+            // 1. Xem thong so (Chung cho tat ca)
             if(k==1) show_device_data(net.send_cmd("CMD=INFO_DATA_REQ," + base_cmd), cur_type);
             
-            // --- LOGIC BOM NUOC ---
+            // 2. Xu ly cho BOM (PUMP)
             else if(cur_type=="PUMP") {
                 if(k==2) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=pump,action=ON");
-                if(k==3) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=pump,action=OFF");
-                
-                // [MOI] Cai dat Hmin Hmax CO KIEM TRA LOI
-                if(k==4) {
+                else if(k==3) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=pump,action=OFF");
+                else if(k==4) {
                     std::string s_min, s_max;
-                    float f_min, f_max;
-                    
                     std::cout << "Nhap do am toi thieu (H_MIN %): "; std::cin >> s_min;
                     std::cout << "Nhap do am toi da (H_MAX %): "; std::cin >> s_max;
-                    
+                    // Kiem tra du lieu don gian
                     try {
-                        f_min = std::stof(s_min);
-                        f_max = std::stof(s_max);
-
-                        if (f_min < 0 || f_max < 0) {
-                            std::cout << "\n\033[1;31m>> LOI: Gia tri do am khong duoc AM!\033[0m\n";
-                        } 
-                        else if (f_max < f_min) {
-                            std::cout << "\n\033[1;31m>> LOI: H_MAX phai lon hon hoac bang H_MIN!\033[0m\n";
-                        } 
-                        else {
+                         if(std::stof(s_min) < 0 || std::stof(s_max) < std::stof(s_min)) 
+                            std::cout << ">> Loi: So khong hop le!\n";
+                         else 
                             std::cout << net.send_cmd("CMD=SET_PARAM," + base_cmd + ",HMIN=" + s_min + ",HMAX=" + s_max) << "\n";
-                        }
-                    } catch (...) {
-                         std::cout << "\n\033[1;31m>> LOI: Vui long nhap so hop le!\033[0m\n";
-                    }
+                    } catch(...) { std::cout << ">> Loi nhap lieu!\n"; }
                 }
             }
             
-            // --- LOGIC DEN ---
+            // 3. Xu ly cho DEN (LIGHT)
             else if(cur_type=="LIGHT") {
                 if(k==2) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=light,action=ON");
-                if(k==3) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=light,action=OFF");
-                if(k==4) {
+                else if(k==3) net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=light,action=OFF");
+                else if(k==4) {
                     std::string s, e; std::cout << "Gio bat (0-23): "; std::cin >> s; std::cout << "Gio tat (0-23): "; std::cin >> e;
                     std::cout << net.send_cmd("CMD=SET_TIMER," + base_cmd + ",START=" + s + ",END=" + e) << "\n";
                 }
-                if(k==5) {
+                else if(k==5) {
                       std::cout << net.send_cmd("CMD=ENABLE_AUTO," + base_cmd) << "\n";
                 }
             }
             
-            // --- LOGIC PHAN BON ---
+            // 4. Xu ly cho PHAN BON (FERT)
             else if(cur_type=="FERT") {
                 if(k==2) { 
-                    std::string n,p,kk; std::cout<<"N: ";std::cin>>n;std::cout<<"P: ";std::cin>>p;std::cout<<"K: ";std::cin>>kk;
+                    std::string n,p,kk; 
+                    std::cout<<"Nhap nguong N (min): ";std::cin>>n;
+                    std::cout<<"Nhap nguong P (min): ";std::cin>>p;
+                    std::cout<<"Nhap nguong K (min): ";std::cin>>kk;
                     net.send_cmd("CMD=SET_PARAM," + base_cmd + ",NMIN="+n+",PMIN="+p+",KMIN="+kk);
+                }
+                else if(k==3) {
+                    //  Lenh bon phan ngay lap tuc
+                    std::cout << net.send_cmd("CMD=CONTROL_REQ," + base_cmd + ",device=fert,action=ON") << "\n";
+                    std::cout << ">> Da gui lenh bon phan!\n";
                 }
             }
         }
