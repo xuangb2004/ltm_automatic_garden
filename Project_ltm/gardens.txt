@@ -1,1 +1,2 @@
-xuan|abc|KIT_01
+xuan|abc|KIT_01,KIT_02
+x|abc|NONE

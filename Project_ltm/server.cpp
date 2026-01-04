@@ -24,8 +24,8 @@ private:
     std::vector<Garden> gardens;
     std::map<std::string, KitState> kits; 
     
-    std::mutex db_mutex;  // Khoa bao ve du lieu
-    std::mutex log_mutex; // [MOI] Khoa bao ve man hinh log
+    std::mutex db_mutex;
+    std::mutex log_mutex; 
     
     bool running = true;
     GardenSimulator* sim;
@@ -44,15 +44,11 @@ public:
         sim = new GardenSimulator(kits, db_mutex);
     }
 
-    // ---  HAM LOG CHO SERVER ---
     void server_log(std::string direction, std::string content, int sock_id) {
         std::lock_guard<std::mutex> lock(log_mutex);
-        
-        // Nhan (RECV),  Gui (SEND)
         if(direction == "RECV") std::cout << "\033[1;33m"; 
         else if(direction == "SEND") std::cout << "\033[1;36m";
-        else std::cout << "\033[1;37m"; // Mau trang cho Info
-
+        else std::cout << "\033[1;37m"; 
         std::cout << "[SOCK " << sock_id << "] [" << direction << "] " << content << "\033[0m\n";
     }
 
@@ -63,6 +59,7 @@ public:
         return str.substr(first, (last - first + 1));
     }
 
+    // --- CAP NHAT: LOAD DATABASE CHO MULTI-KIT ---
     void load_database() {
         std::string line;
         // Load Users
@@ -76,15 +73,23 @@ public:
             }
             f_users.close();
         }
-        // Load Gardens
+        // Load Gardens (Sua de doc nhieu kit)
         std::ifstream f_gardens("gardens.txt");
         if(f_gardens.is_open()) {
             while (std::getline(f_gardens, line)) {
                 if (trim(line).empty()) continue;
-                std::stringstream ss(line); std::string o, n, k;
-                std::getline(ss, o, '|'); std::getline(ss, n, '|'); std::getline(ss, k, '|');
-                k = trim(k);
-                gardens.push_back({trim(o), trim(n), k});
+                std::stringstream ss(line); std::string o, n, k_list;
+                std::getline(ss, o, '|'); std::getline(ss, n, '|'); std::getline(ss, k_list, '|');
+                
+                Garden g; g.owner = trim(o); g.name = trim(n);
+                // Tach chuoi KIT_01,KIT_02,...
+                std::stringstream ss_k(trim(k_list)); std::string k_id;
+                while(std::getline(ss_k, k_id, ',')) {
+                    if(!trim(k_id).empty() && trim(k_id) != "NONE") {
+                        g.kit_ids.push_back(trim(k_id));
+                    }
+                }
+                gardens.push_back(g);
             }
             f_gardens.close();
         }
@@ -113,13 +118,25 @@ public:
         }
     }
 
+    // --- CAP NHAT: SAVE ALL CHO MULTI-KIT ---
     void save_all() {
         std::ofstream f_g("gardens.txt");
-        for (const auto &g : gardens) f_g << g.owner << "|" << g.name << "|" << g.kit_id << "\n";
+        for (const auto &g : gardens) {
+            f_g << g.owner << "|" << g.name << "|";
+            if (g.kit_ids.empty()) f_g << "NONE";
+            else {
+                for(size_t i=0; i<g.kit_ids.size(); ++i) {
+                    f_g << g.kit_ids[i] << (i < g.kit_ids.size()-1 ? "," : "");
+                }
+            }
+            f_g << "\n";
+        }
         f_g.close();
+        
         std::ofstream f_u("users.txt");
         for (const auto &u : users) f_u << u.username << "|" << u.password << "\n";
         f_u.close();
+        
         std::ofstream f_k("kits.txt");
         for (const auto &pair : kits) {
             const KitState &k = pair.second;
@@ -170,7 +187,7 @@ public:
         std::string cmd = data.count("CMD") ? data["CMD"] : (data.count("MSG_TYPE") ? data["MSG_TYPE"] : "");
         std::lock_guard<std::mutex> lock(db_mutex);
 
-        // XU LY CAC LENH   
+        // --- XU LY CAC LENH CO BAN ---
         if (cmd == "LOGIN") {
             for (auto &u : users) if (u.username == data["USER"] && u.password == data["PASS"]) return "STATUS=SUCCESS";
             return "STATUS=FAIL";
@@ -199,27 +216,59 @@ public:
             for (auto &pair : kits) { if (!pair.second.assigned) { if (!first) list_str += ";"; list_str += pair.first; first = false; } }
             if (first) list_str += "EMPTY"; return list_str;
         }
+
+        // --- CAP NHAT: ASSIGN_KIT (Them vao Vector) ---
         else if (cmd == "ASSIGN_KIT") {
             std::string target_kit = data["KIT_ID"];
             if (kits[target_kit].assigned) return "STATUS=FAIL,MSG=KitBusy";
             for(auto &g : gardens) {
-                if(g.owner == data["USER"] && g.name == data["GARDEN"]) { g.kit_id = target_kit; kits[target_kit].assigned = true; save_all(); return "STATUS=SUCCESS"; }
-            }
-            return "STATUS=FAIL";
-        }
-        else if (cmd == "REMOVE_KIT") {
-            for(auto &g : gardens) {
-                if(g.owner == data["USER"] && g.name == data["GARDEN"]) {
-                    std::string k_id = g.kit_id; g.kit_id = "NONE";
-                    if(kits.count(k_id)) kits[k_id].assigned = false; save_all(); return "STATUS=SUCCESS";
+                if(g.owner == data["USER"] && g.name == data["GARDEN"]) { 
+                    g.kit_ids.push_back(target_kit); // Them vao vector
+                    kits[target_kit].assigned = true; 
+                    save_all(); 
+                    return "STATUS=SUCCESS"; 
                 }
             }
             return "STATUS=FAIL";
         }
-        else if (cmd == "GET_GARDEN_DETAIL") {
-            for(auto &g : gardens) if(g.owner == data["USER"] && g.name == data["NAME"]) return "STATUS=SUCCESS,KIT_ID=" + g.kit_id;
+
+        // --- CAP NHAT: REMOVE_KIT (Xoa khoi Vector) ---
+        else if (cmd == "REMOVE_KIT") {
+            std::string target_kit = data["KIT_ID"];
+            for(auto &g : gardens) {
+                if(g.owner == data["USER"] && g.name == data["GARDEN"]) {
+                    // Tim va xoa
+                    for(auto it = g.kit_ids.begin(); it != g.kit_ids.end(); ++it) {
+                        if(*it == target_kit) {
+                            g.kit_ids.erase(it);
+                            if(kits.count(target_kit)) kits[target_kit].assigned = false; 
+                            save_all(); 
+                            return "STATUS=SUCCESS";
+                        }
+                    }
+                }
+            }
             return "STATUS=FAIL";
         }
+
+        // --- CAP NHAT: GET_GARDEN_DETAIL (Tra ve danh sach) ---
+        else if (cmd == "GET_GARDEN_DETAIL") {
+            for(auto &g : gardens) {
+                if(g.owner == data["USER"] && g.name == data["NAME"]) {
+                    std::string list = "KIT_LIST=";
+                    if(g.kit_ids.empty()) list += "NONE";
+                    else {
+                        for(size_t i=0; i<g.kit_ids.size(); i++) {
+                            list += g.kit_ids[i] + (i < g.kit_ids.size()-1 ? ";" : "");
+                        }
+                    }
+                    return "STATUS=SUCCESS," + list;
+                }
+            }
+            return "STATUS=FAIL";
+        }
+
+        // --- CAC LENH DIEU KHIEN (GIU NGUYEN) ---
         else if (cmd == "INFO_DATA_REQ") {
             std::string k_id = data["KIT_ID"];
             if (kits.count(k_id)) {
@@ -240,8 +289,8 @@ public:
                 if (dev == "pump") k.pump_on = (act == "ON");
                 if (dev == "light") { k.light_on = (act == "ON"); k.auto_light_mode = false; }
                 if (dev == "fert" && act == "ON") {
-                k.N += 15.0; k.P += 15.0; k.K += 15.0; 
-                std::cout << "[CMD " << k_id << "] Manual Fertilize -> Added NPK\n";
+                    k.N += 15.0; k.P += 15.0; k.K += 15.0; 
+                    std::cout << "[CMD " << k_id << "] Manual Fertilize -> Added NPK\n";
                 }
                 save_all(); return "MSG_TYPE=CONTROL_RES,STATUS=SUCCESS";
             }
@@ -283,17 +332,11 @@ public:
             int n = recv(sock, buffer, BUFFER_SIZE, 0);
             if (n <= 0) break;
             
-            // Chuan hoa chuoi nhan duoc (xoa ky tu xuong dong thua)
             std::string raw_msg(buffer);
             while(!raw_msg.empty() && (raw_msg.back() == '\r' || raw_msg.back() == '\n')) raw_msg.pop_back();
 
-            // [LOG] Log ban tin nhan
             server_log("RECV", raw_msg, sock);
-
-            // Xu ly
             std::string response = handle_request(raw_msg);
-            
-            // [LOG] Log ban tin gui
             server_log("SEND", response, sock);
 
             response += "\n";
@@ -318,7 +361,6 @@ public:
 
         while (running) {
             new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-            // [LOG] Log khi co ket noi moi
             server_log("INFO", "New Client Connected", new_socket);
             std::thread(&CentralServer::client_handler, this, new_socket).detach();
         }

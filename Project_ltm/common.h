@@ -35,7 +35,7 @@ struct KitState {
 struct Garden { 
     std::string owner; 
     std::string name; 
-    std::string kit_id = "NONE"; 
+    std::vector<std::string> kit_ids;
 };
 
 struct User { std::string username; std::string password; };
