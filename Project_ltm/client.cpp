@@ -126,6 +126,8 @@ public:
         while (true) {
             std::cout << "\n=== USER: " << current_user << " ===\n1. DS Vuon\n2. Tao Vuon\n3. Doi mat khau\n0. Logout\nChon: ";
             int c; std::cin >> c; if (c==0) { current_user=""; net.disconnect(); return; }
+            
+            // XEM DANH SACH VUON
             if (c==1) {
                 std::string resp = net.send_cmd("CMD=GET_LIST,USER="+current_user);
                 size_t pos = resp.find("LIST=");
@@ -139,8 +141,37 @@ public:
                     if(k>0 && k<=g_names.size()) process_garden(g_names[k-1]);
                 }
             } 
-            else if (c==2) { std::string n; std::cout<<"Ten vuon: "; std::cin>>n; std::cout << net.send_cmd("CMD=CREATE_GARDEN,USER="+current_user+",NAME="+n) << "\n"; }
-            else if (c==3) { std::string o, n; std::cout<<"Mat khau cu: "; std::cin>>o; std::cout<<"Moi: "; std::cin>>n; std::cout << net.send_cmd("CMD=CHANGE_PASS,USER="+current_user+",OLD_PASS="+o+",NEW_PASS="+n) << "\n"; }
+            // TAO VUON
+            else if (c==2) { 
+                std::string n; std::cout<<"Ten vuon: "; std::cin>>n; 
+                std::cout << net.send_cmd("CMD=CREATE_GARDEN,USER="+current_user+",NAME="+n) << "\n"; 
+            }
+            // DOI MAT KHAU 
+            else if (c==3) { 
+                std::string old_pass, new_pass, confirm_pass;
+                std::cout << "\n--- DOI MAT KHAU ---\n";
+                std::cout << "Nhap mat khau cu: "; std::cin >> old_pass;
+                std::cout << "Nhap mat khau moi: "; std::cin >> new_pass;
+                std::cout << "Xac nhan mat khau moi: "; std::cin >> confirm_pass;
+
+                // Kiem tra logic tai Client truoc khi gui
+                if (new_pass != confirm_pass) {
+                    std::cout << "\n\033[1;31m>> LOI: Mat khau xac nhan khong khop! Vui long thu lai.\033[0m\n";
+                } 
+                else if (new_pass.empty()) {
+                    std::cout << "\n\033[1;31m>> LOI: Mat khau khong duoc de trong!\033[0m\n";
+                }
+                else {
+                    // Gui lenh len Server
+                    std::string resp = net.send_cmd("CMD=CHANGE_PASS,USER="+current_user+",OLD_PASS="+old_pass+",NEW_PASS="+new_pass);
+                    
+                    if(resp.find("SUCCESS") != std::string::npos) {
+                        std::cout << "\n\033[1;32m>> THANH CONG: Da doi mat khau! Vui long ghi nho.\033[0m\n";
+                    } else {
+                        std::cout << "\n\033[1;31m>> THAT BAI: Mat khau cu khong dung!\033[0m\n";
+                    }
+                }
+            }
         }
     }
 
@@ -223,7 +254,6 @@ public:
                             std::cout << "\n\033[1;31m>> LOI: H_MAX phai lon hon hoac bang H_MIN!\033[0m\n";
                         } 
                         else {
-                            // Neu moi thu OK thi moi gui
                             std::cout << net.send_cmd("CMD=SET_PARAM," + base_cmd + ",HMIN=" + s_min + ",HMAX=" + s_max) << "\n";
                         }
                     } catch (...) {
