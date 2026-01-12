@@ -192,7 +192,7 @@ public:
         std::cout << "Dang ket noi thu...";
         if (net.connect_server()) {
             std::cout << " THANH CONG!\n";
-            net.disconnect();
+            // net.disconnect();
         } else {
             std::cout << " THAT BAI! Vui long kiem tra IP hoac Tuong lua (Firewall).\n";
             exit(0);
@@ -213,11 +213,14 @@ public:
 
     void garden_list_menu() {
         while (true) {
-            std::cout << "\n=== USER: " << current_user << " ===\n1. DS Vuon\n2. Tao Vuon\n3. Doi mat khau\n0. Logout\nChon: ";
+            // [SUA] Them tuy chon so 3 la Xoa Vuon
+            std::cout << "\n=== USER: " << current_user << " ===\n1. DS Vuon\n2. Tao Vuon\n3. Xoa Vuon\n4. Doi mat khau\n0. Logout\nChon: ";
             int c; std::cin >> c; if (c==0) { current_user=""; net.disconnect(); return; }
             
+            // 1. XEM DANH SACH (Giu nguyen)
             if (c==1) {
-                std::string resp = net.send_cmd("CMD=GET_LIST,USER="+current_user);
+                // ... (Code cu giu nguyen) ...
+                 std::string resp = net.send_cmd("CMD=GET_LIST,USER="+current_user);
                 size_t pos = resp.find("LIST=");
                 if (pos!=std::string::npos) {
                     std::string data = resp.substr(pos+5);
@@ -229,12 +232,36 @@ public:
                     if(k>0 && k<=g_names.size()) process_garden(g_names[k-1]);
                 }
             } 
+            // 2. TAO VUON (Giu nguyen)
             else if (c==2) { 
-                std::string n; std::cout<<"Ten vuon: "; std::cin>>n; 
+                std::string n; std::cout<<"Ten vuon moi: "; std::cin>>n; 
                 std::cout << net.send_cmd("CMD=CREATE_GARDEN,USER="+current_user+",NAME="+n) << "\n"; 
             }
-            else if (c==3) { 
-                std::string old_pass, new_pass, confirm_pass;
+            // 3. [MOI] XOA VUON
+            else if (c==3) {
+                // Hien thi danh sach truoc de nguoi dung biet ten ma xoa
+                net.send_cmd("CMD=GET_LIST,USER="+current_user); 
+                // (Ban co the goi lai logic hien thi list o day neu muon dep hon, hoac chi can nhap ten)
+                
+                std::string n; 
+                std::cout << "Nhap chinh xac TEN vuon muon xoa: "; 
+                std::cin >> n;
+                
+                std::string confirm;
+                std::cout << ">> CANH BAO: Xoa vuon se go bo tat ca thiet bi ra khoi vuon nay.\n";
+                std::cout << ">> Ban chac chan muon xoa? (y/n): ";
+                std::cin >> confirm;
+                
+                if (confirm == "y" || confirm == "Y") {
+                    std::cout << net.send_cmd("CMD=REMOVE_GARDEN,USER="+current_user+",NAME="+n) << "\n";
+                } else {
+                    std::cout << ">> Da huy thao tac.\n";
+                }
+            }
+            // 4. DOI MAT KHAU (Day so thu tu tu 3 xuong 4)
+            else if (c==4) { 
+                // ... (Code doi mat khau cu giu nguyen) ...
+                 std::string old_pass, new_pass, confirm_pass;
                 std::cout << "\n--- DOI MAT KHAU ---\n";
                 std::cout << "Nhap mat khau cu: "; std::cin >> old_pass;
                 std::cout << "Nhap mat khau moi: "; std::cin >> new_pass;

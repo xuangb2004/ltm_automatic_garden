@@ -206,6 +206,29 @@ public:
             for(auto &g : gardens) if(g.owner == data["USER"] && g.name == data["NAME"]) return "STATUS=FAIL,MSG=NameExists";
             gardens.push_back({data["USER"], data["NAME"]}); save_all(); return "STATUS=SUCCESS";
         }
+        else if (cmd == "REMOVE_GARDEN") {
+            std::string u = data["USER"];
+            std::string n = data["NAME"];
+            
+            for (auto it = gardens.begin(); it != gardens.end(); ++it) {
+                if (it->owner == u && it->name == n) {
+                    // 1. Giai phong tat ca cac Kit dang co trong vuon nay
+                    for (const std::string& k_id : it->kit_ids) {
+                        if (kits.count(k_id)) {
+                            kits[k_id].assigned = false; // Tra ve trang thai Ranh
+                        }
+                    }
+                    
+                    // 2. Xoa vuon khoi vector
+                    gardens.erase(it);
+                    
+                    // 3. Luu lai
+                    save_all();
+                    return "STATUS=SUCCESS";
+                }
+            }
+            return "STATUS=FAIL,MSG=NotFound";
+        }
         else if (cmd == "GET_LIST") {
             std::string list_str = "STATUS=SUCCESS,LIST="; bool first = true;
             for (auto &g : gardens) { if (g.owner == data["USER"]) { if (!first) list_str += ";"; list_str += g.name; first = false; } }
