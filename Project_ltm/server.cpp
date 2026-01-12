@@ -39,7 +39,7 @@ public:
                 kits[id] = {id}; 
             }
             std::cout << "[INIT] Created 5 virtual Kits.\n";
-            save_all();
+            // save_all(); // [OPTIONAL] Neu muon khong tao file moi thi co the comment dong nay
         }
         sim = new GardenSimulator(kits, db_mutex);
     }
@@ -59,7 +59,6 @@ public:
         return str.substr(first, (last - first + 1));
     }
 
-    // --- CAP NHAT: LOAD DATABASE CHO MULTI-KIT ---
     void load_database() {
         std::string line;
         // Load Users
@@ -73,7 +72,7 @@ public:
             }
             f_users.close();
         }
-        // Load Gardens (Sua de doc nhieu kit)
+        // Load Gardens
         std::ifstream f_gardens("gardens.txt");
         if(f_gardens.is_open()) {
             while (std::getline(f_gardens, line)) {
@@ -82,7 +81,6 @@ public:
                 std::getline(ss, o, '|'); std::getline(ss, n, '|'); std::getline(ss, k_list, '|');
                 
                 Garden g; g.owner = trim(o); g.name = trim(n);
-                // Tach chuoi KIT_01,KIT_02,...
                 std::stringstream ss_k(trim(k_list)); std::string k_id;
                 while(std::getline(ss_k, k_id, ',')) {
                     if(!trim(k_id).empty() && trim(k_id) != "NONE") {
@@ -118,8 +116,9 @@ public:
         }
     }
 
-    // --- CAP NHAT: SAVE ALL CHO MULTI-KIT ---
+    // --- [QUAN TRONG] HAM NAY DA DUOC SUA DE KHONG GHI DE FILE KITS.TXT ---
     void save_all() {
+        // 1. Luu Gardens (Van luu binh thuong)
         std::ofstream f_g("gardens.txt");
         for (const auto &g : gardens) {
             f_g << g.owner << "|" << g.name << "|";
@@ -133,11 +132,14 @@ public:
         }
         f_g.close();
         
+        // 2. Luu Users (Van luu binh thuong)
         std::ofstream f_u("users.txt");
         for (const auto &u : users) f_u << u.username << "|" << u.password << "\n";
         f_u.close();
         
-        std::ofstream f_k("kits.txt");
+        // 3. Luu Kits -> DA VO HIEU HOA (COMMENT OUT)
+        // De file kits.txt tren may khong bi thay doi boi chuong trinh
+        /* std::ofstream f_k("kits.txt");
         for (const auto &pair : kits) {
             const KitState &k = pair.second;
             f_k << k.id << "|" << (k.assigned ? "1" : "0") << "|"
@@ -145,6 +147,7 @@ public:
                 << k.light_start << "|" << k.light_end << "|" << (k.auto_light_mode ? "1" : "0") << "\n";
         }
         f_k.close();
+        */
     }
 
     void automation_control_loop() {
@@ -206,29 +209,27 @@ public:
             for(auto &g : gardens) if(g.owner == data["USER"] && g.name == data["NAME"]) return "STATUS=FAIL,MSG=NameExists";
             gardens.push_back({data["USER"], data["NAME"]}); save_all(); return "STATUS=SUCCESS";
         }
+        
+        // --- THEM LENH XOA VUON ---
         else if (cmd == "REMOVE_GARDEN") {
             std::string u = data["USER"];
             std::string n = data["NAME"];
             
             for (auto it = gardens.begin(); it != gardens.end(); ++it) {
                 if (it->owner == u && it->name == n) {
-                    // 1. Giai phong tat ca cac Kit dang co trong vuon nay
                     for (const std::string& k_id : it->kit_ids) {
                         if (kits.count(k_id)) {
-                            kits[k_id].assigned = false; // Tra ve trang thai Ranh
+                            kits[k_id].assigned = false; 
                         }
                     }
-                    
-                    // 2. Xoa vuon khoi vector
                     gardens.erase(it);
-                    
-                    // 3. Luu lai
                     save_all();
                     return "STATUS=SUCCESS";
                 }
             }
             return "STATUS=FAIL,MSG=NotFound";
         }
+
         else if (cmd == "GET_LIST") {
             std::string list_str = "STATUS=SUCCESS,LIST="; bool first = true;
             for (auto &g : gardens) { if (g.owner == data["USER"]) { if (!first) list_str += ";"; list_str += g.name; first = false; } }
@@ -240,13 +241,12 @@ public:
             if (first) list_str += "EMPTY"; return list_str;
         }
 
-        // --- CAP NHAT: ASSIGN_KIT (Them vao Vector) ---
         else if (cmd == "ASSIGN_KIT") {
             std::string target_kit = data["KIT_ID"];
             if (kits[target_kit].assigned) return "STATUS=FAIL,MSG=KitBusy";
             for(auto &g : gardens) {
                 if(g.owner == data["USER"] && g.name == data["GARDEN"]) { 
-                    g.kit_ids.push_back(target_kit); // Them vao vector
+                    g.kit_ids.push_back(target_kit); 
                     kits[target_kit].assigned = true; 
                     save_all(); 
                     return "STATUS=SUCCESS"; 
@@ -255,12 +255,10 @@ public:
             return "STATUS=FAIL";
         }
 
-        // --- CAP NHAT: REMOVE_KIT (Xoa khoi Vector) ---
         else if (cmd == "REMOVE_KIT") {
             std::string target_kit = data["KIT_ID"];
             for(auto &g : gardens) {
                 if(g.owner == data["USER"] && g.name == data["GARDEN"]) {
-                    // Tim va xoa
                     for(auto it = g.kit_ids.begin(); it != g.kit_ids.end(); ++it) {
                         if(*it == target_kit) {
                             g.kit_ids.erase(it);
@@ -274,7 +272,6 @@ public:
             return "STATUS=FAIL";
         }
 
-        // --- CAP NHAT: GET_GARDEN_DETAIL (Tra ve danh sach) ---
         else if (cmd == "GET_GARDEN_DETAIL") {
             for(auto &g : gardens) {
                 if(g.owner == data["USER"] && g.name == data["NAME"]) {
@@ -291,7 +288,6 @@ public:
             return "STATUS=FAIL";
         }
 
-        // --- CAC LENH DIEU KHIEN (GIU NGUYEN) ---
         else if (cmd == "INFO_DATA_REQ") {
             std::string k_id = data["KIT_ID"];
             if (kits.count(k_id)) {
