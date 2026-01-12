@@ -38,8 +38,8 @@ public:
                 std::string id = "KIT_0" + std::to_string(i);
                 kits[id] = {id}; 
             }
-            std::cout << "[INIT] Created 5 virtual Kits (RAM Only).\n";
-            // save_all(); // KHONG LUU FILE NGAY KHI KHOI TAO
+            std::cout << "[INIT] Created 5 virtual Kits.\n";
+            save_all(); // QUAN TRONG: Luu ngay lan dau khoi tao de tao file
         }
         sim = new GardenSimulator(kits, db_mutex);
     }
@@ -59,7 +59,6 @@ public:
         return str.substr(first, (last - first + 1));
     }
 
-    // --- LOAD DATABASE (VAN DOC FILE BINH THUONG) ---
     void load_database() {
         std::string line;
         // Load Users
@@ -117,28 +116,48 @@ public:
         }
     }
 
-    // --- [QUAN TRONG] VO HIEU HOA LUU FILE ---
+    // --- [QUAN TRONG] HAM NAY DA DUOC MO LAI DE GHI FILE ---
     void save_all() {
-        // Ham nay duoc goi nhung KHONG LAM GI CA (Empty Body)
-        // Dieu nay dam bao du lieu tren o cung (Hard Disk) luon nguyen ven
-        // bat ke Client gui lenh gi.
-        
-        /* DA COMMENT TOAN BO LOGIC GHI FILE 
-           ----------------------------------
+        // 1. Luu Gardens
         std::ofstream f_g("gardens.txt");
-        for (const auto &g : gardens) { ... }
-        f_g.close();
+        if (f_g.is_open()) {
+            for (const auto &g : gardens) {
+                f_g << g.owner << "|" << g.name << "|";
+                if (g.kit_ids.empty()) f_g << "NONE";
+                else {
+                    for(size_t i=0; i<g.kit_ids.size(); ++i) {
+                        f_g << g.kit_ids[i] << (i < g.kit_ids.size()-1 ? "," : "");
+                    }
+                }
+                f_g << "\n";
+            }
+            f_g.close();
+        } else {
+            std::cerr << "[ERROR] Khong the ghi file gardens.txt (Kiem tra quyen Folder)\n";
+        }
         
+        // 2. Luu Users
         std::ofstream f_u("users.txt");
-        for (const auto &u : users) ...
-        f_u.close();
+        if (f_u.is_open()) {
+            for (const auto &u : users) f_u << u.username << "|" << u.password << "\n";
+            f_u.close();
+        } else {
+             std::cerr << "[ERROR] Khong the ghi file users.txt\n";
+        }
         
+        // 3. Luu Kits (DA UN-COMMENT)
         std::ofstream f_k("kits.txt");
-        for (const auto &pair : kits) ...
-        f_k.close();
-        */
-       
-       // std::cout << "[DEBUG] Data changed in RAM, but NOT saved to disk.\n"; 
+        if (f_k.is_open()) {
+            for (const auto &pair : kits) {
+                const KitState &k = pair.second;
+                f_k << k.id << "|" << (k.assigned ? "1" : "0") << "|"
+                    << k.H_MIN << "|" << k.H_MAX << "|" << k.N_MIN << "|" << k.P_MIN << "|" << k.K_MIN << "|"
+                    << k.light_start << "|" << k.light_end << "|" << (k.auto_light_mode ? "1" : "0") << "\n";
+            }
+            f_k.close();
+        } else {
+             std::cerr << "[ERROR] Khong the ghi file kits.txt\n";
+        }
     }
 
     void automation_control_loop() {
